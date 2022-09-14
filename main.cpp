@@ -28,7 +28,7 @@ enum ObjType {
     T_SYMBOL,
     T_CONS,
     T_ENV,
-    T_BULITIN,
+    T_BUILTIN,
     T_FUNCTION,
     T_LAMBDA,
     T_MACRO
@@ -36,7 +36,7 @@ enum ObjType {
 
 struct Obj;
 
-typedef Obj*(*Bulitin)(Obj*, Obj*);
+typedef Obj*(*Builtin)(Obj*, Obj*);
 
 struct Obj {
     ObjType type;
@@ -51,8 +51,8 @@ struct Obj {
             int64_t fn_param_count;
             union {
                 struct {
-                    Bulitin ptr;
-                } v_bulitin;
+                    Builtin ptr;
+                } v_builtin;
                 struct {
                     Obj* params;
                     Obj* body;
@@ -428,7 +428,7 @@ std::string typeToString(ObjType type) {
         case T_BOOL: return "BOOL";
         case T_SYMBOL: return "SYMBOL";
         case T_CONS: return "CONS";
-        case T_BULITIN: return "BULITIN";
+        case T_BUILTIN: return "BUILTIN";
         case T_FUNCTION: return "FUNCTION";
         case T_LAMBDA: return "LAMBDA";
         case T_MACRO: return "MACRO";
@@ -437,7 +437,7 @@ std::string typeToString(ObjType type) {
     return "UNDEFINED";
 }
 
-Obj* bulitin_typeof(Obj* env, Obj* x) {
+Obj* builtin_typeof(Obj* env, Obj* x) {
     return intern(typeToString(car(x)->type).c_str());
 }
 
@@ -451,19 +451,19 @@ Obj* print(Obj* x) {
     return nullObj;
 }
 
-Obj* bulitin_print(Obj* env, Obj* x) {
+Obj* builtin_print(Obj* env, Obj* x) {
     print(car(x));
     return nullObj;
 }
 
-Obj* bulitin_println(Obj* env, Obj* x) {
-    bulitin_print(env, x);
+Obj* builtin_println(Obj* env, Obj* x) {
+    builtin_print(env, x);
     putchar('\n');
     return nullObj;
 }
 
 #define binary_op(f, op) \
-Obj* bulitin_##f(Obj* env, Obj* x) {    \
+Obj* builtin_##f(Obj* env, Obj* x) {    \
     Obj* a = eval(env, car(x)); \
     Obj* b = eval(env, car(cdr(x)));    \
     if(::strcmp(#op, "+") == 0 && (a->type == T_STRING && b->type == T_STRING)) return makeString(strcat(a->v_str, b->v_str)); \
@@ -483,23 +483,23 @@ binary_op(sub, -);
 binary_op(mul, *);
 binary_op(div, /);
 
-Obj* bulitin_list(Obj* env, Obj* x) {
+Obj* builtin_list(Obj* env, Obj* x) {
     return x;
 }
 
-Obj* bulitin_car(Obj* env, Obj* x) {
+Obj* builtin_car(Obj* env, Obj* x) {
     return car(car(x));
 }
 
-Obj* bulitin_cdr(Obj* env, Obj* x) {
+Obj* builtin_cdr(Obj* env, Obj* x) {
     return cdr(car(x));
 }
 
-Obj* bulitin_cons(Obj* env, Obj* x) {
+Obj* builtin_cons(Obj* env, Obj* x) {
     return cons(car(x), car(cdr(x)));
 }
 
-Obj* bulitin_progn(Obj* env, Obj* x) {
+Obj* builtin_progn(Obj* env, Obj* x) {
     Obj* currentEnv = makeEnv(env, nullObj);
     Obj* retObj = nullObj;
     for(Obj* p = x; p != nullObj; p = cdr(p)) {
@@ -508,7 +508,7 @@ Obj* bulitin_progn(Obj* env, Obj* x) {
     return retObj;
 }
 
-Obj* bulitin_setq(Obj* env, Obj* x) {
+Obj* builtin_setq(Obj* env, Obj* x) {
     assert(car(x)->type == T_SYMBOL);
     Obj* var = findVar(env, car(x));
     Obj* obj = eval(env, car(cdr(x)));
@@ -529,7 +529,7 @@ Obj* check_paramters(Obj* env, Obj* params) {
     return params;
 }
 
-Obj* bulitin_defun(Obj* env, Obj* x) {
+Obj* builtin_defun(Obj* env, Obj* x) {
     Obj* funcObj = makeObj(T_FUNCTION);
     funcObj->fn_name = car(x);
     funcObj->v_function.params = check_paramters(env, car(cdr(x)));
@@ -539,7 +539,7 @@ Obj* bulitin_defun(Obj* env, Obj* x) {
     return funcObj;
 }
 
-Obj* bulitin_lambda(Obj* env, Obj* x) {
+Obj* builtin_lambda(Obj* env, Obj* x) {
     Obj* params = car(cdr(x));
     if(params == intern("null")) {
         params = nullObj;
@@ -553,7 +553,7 @@ Obj* bulitin_lambda(Obj* env, Obj* x) {
     return lambdaObj;
 }
 
-Obj* bulitin_defmacro(Obj* env, Obj* x) {
+Obj* builtin_defmacro(Obj* env, Obj* x) {
     Obj* macroObj = makeObj(T_MACRO);
     macroObj->fn_name = car(x);
     macroObj->v_macro.params = check_paramters(env, car(cdr(x)));
@@ -564,7 +564,7 @@ Obj* bulitin_defmacro(Obj* env, Obj* x) {
 }
 
 // (macroexpand '(F 1 2 3))
-Obj* bulitin_macroexpand(Obj* env, Obj* x) {
+Obj* builtin_macroexpand(Obj* env, Obj* x) {
     return macroexpand(env, cdr(findVar(env, car(car(x)))), cdr(car(x)));
 }
 
@@ -585,11 +585,11 @@ Obj* parse_quote() {
     return cons(quote, cons(parse(), nullObj));
 }
 
-Obj* bulitin_quote(Obj* env, Obj* x)  {
+Obj* builtin_quote(Obj* env, Obj* x)  {
     return car(x);
 }
 
-Obj* bulitin_cond(Obj* env, Obj* x) {
+Obj* builtin_cond(Obj* env, Obj* x) {
     for(Obj* p = x; p != nullObj; p = cdr(p)) {
         Obj* item = car(p);
         Obj* cond = eval(env, car(item));
@@ -600,7 +600,7 @@ Obj* bulitin_cond(Obj* env, Obj* x) {
     return nullObj;
 }
 
-Obj* bulitin_if(Obj* env, Obj* x) {
+Obj* builtin_if(Obj* env, Obj* x) {
     Obj* test = eval(env, car(x));
     Obj* thenBody = car(cdr(x));
     Obj* elseBody = car(cdr(cdr(x)));
@@ -612,7 +612,7 @@ Obj* bulitin_if(Obj* env, Obj* x) {
 }
 
 #define binary_logic_op(f, op) \
-Obj* bulitin_##f(Obj* env, Obj* x) { \
+Obj* builtin_##f(Obj* env, Obj* x) { \
     Obj* a = car(x); \
     Obj* b = car(cdr(x)); \
     if((a == nullObj || b == nullObj) && (::strcmp(#op , "==") == 0 || ::strcmp(#op , "!=") == 0)) return toBoolObj(a op b); \
@@ -651,11 +651,11 @@ bool is_list(Obj* x) {
     return list_length(x) != -1;
 }
 
-Obj* bulitin_length(Obj* env, Obj* x)  {
+Obj* builtin_length(Obj* env, Obj* x)  {
     return makeInt(list_length(car(x)));
 }
 
-Obj* bulitin_eval(Obj* env, Obj* x) {
+Obj* builtin_eval(Obj* env, Obj* x) {
     x = car(x);
     if(x->type == T_STRING) {
         run_before(std::string(x->v_str));
@@ -664,9 +664,16 @@ Obj* bulitin_eval(Obj* env, Obj* x) {
     return eval(env, x);
 }
 
-Obj* bulitin_import(Obj* env, Obj* x) {
+Obj* builtin_import(Obj* env, Obj* x) {
     throw_error_assert(car(x)->type == T_STRING, env, "import() parameter type must be string");
     loadModule(env, std::string(car(x)->v_str));
+    return nullObj;
+}
+
+Obj* builtin_while(Obj* env, Obj* x) {
+    while(eval(env, car(x)) == trueObj) {
+        eval(env, car(cdr(x)));
+    }
     return nullObj;
 }
 
@@ -700,44 +707,45 @@ int objToStr(Obj* x, char* str) {
     return strlen(str);
 }
 
-void addBulitin(Obj* env, const char* name, Bulitin bulitin, int64_t param_count) {
-    Obj* bulitinObj = makeObj(T_BULITIN);
-    bulitinObj->fn_name = intern(name);
-    bulitinObj->fn_param_count = param_count;
-    bulitinObj->v_bulitin.ptr = bulitin;
-    addVar(env, bulitinObj->fn_name, bulitinObj);
+void addBuiltin(Obj* env, const char* name, Builtin builtin, int64_t param_count) {
+    Obj* builtinObj = makeObj(T_BUILTIN);
+    builtinObj->fn_name = intern(name);
+    builtinObj->fn_param_count = param_count;
+    builtinObj->v_builtin.ptr = builtin;
+    addVar(env, builtinObj->fn_name, builtinObj);
 }
 
-void defineBulitins(Obj* env) {
-    addBulitin(env, "print", bulitin_print, 1);
-    addBulitin(env, "println", bulitin_println, 1);
-    addBulitin(env, "+", bulitin_add, 2);
-    addBulitin(env, "-", bulitin_sub, 2);
-    addBulitin(env, "*", bulitin_mul, 2);
-    addBulitin(env, "/", bulitin_div, 2);
-    addBulitin(env, "list", bulitin_list, -1); /* unlimited number of parameters */
-    addBulitin(env, "car", bulitin_car, 1);
-    addBulitin(env, "cdr", bulitin_cdr, 1);
-    addBulitin(env, "progn", bulitin_progn, -1);
-    addBulitin(env, "setq", bulitin_setq, 2);
-    addBulitin(env, "defun", bulitin_defun, 3);
-    addBulitin(env, "quote", bulitin_quote, 1);
-    addBulitin(env, "length", bulitin_length, 1);
-    addBulitin(env, "cond", bulitin_cond, -1);
-    addBulitin(env, "if", bulitin_if, 3);
-    addBulitin(env, "eq", bulitin_eq, 2);
-    addBulitin(env, "neq", bulitin_neq, 2);
-    addBulitin(env, "gt", bulitin_gt, 2);
-    addBulitin(env, "gte", bulitin_gte, 2);
-    addBulitin(env, "lt", bulitin_lt, 2);
-    addBulitin(env, "lte", bulitin_lte, 2);
-    addBulitin(env, "typeof", bulitin_typeof, 1);
-    addBulitin(env, "lambda", bulitin_lambda, 2);
-    addBulitin(env, "eval", bulitin_eval, 1);
-    addBulitin(env, "defmacro", bulitin_defmacro, 3);
-    addBulitin(env, "macroexpand", bulitin_macroexpand, 1);
-    addBulitin(env, "cons", bulitin_cons, 2);
-    addBulitin(env, "import", bulitin_import, 1);
+void defineBuiltins(Obj* env) {
+    addBuiltin(env, "print", builtin_print, 1);
+    addBuiltin(env, "println", builtin_println, 1);
+    addBuiltin(env, "+", builtin_add, 2);
+    addBuiltin(env, "-", builtin_sub, 2);
+    addBuiltin(env, "*", builtin_mul, 2);
+    addBuiltin(env, "/", builtin_div, 2);
+    addBuiltin(env, "list", builtin_list, -1); /* unlimited number of parameters */
+    addBuiltin(env, "car", builtin_car, 1);
+    addBuiltin(env, "cdr", builtin_cdr, 1);
+    addBuiltin(env, "progn", builtin_progn, -1);
+    addBuiltin(env, "setq", builtin_setq, 2);
+    addBuiltin(env, "defun", builtin_defun, 3);
+    addBuiltin(env, "quote", builtin_quote, 1);
+    addBuiltin(env, "length", builtin_length, 1);
+    addBuiltin(env, "cond", builtin_cond, -1);
+    addBuiltin(env, "if", builtin_if, 3);
+    addBuiltin(env, "eq", builtin_eq, 2);
+    addBuiltin(env, "neq", builtin_neq, 2);
+    addBuiltin(env, "gt", builtin_gt, 2);
+    addBuiltin(env, "gte", builtin_gte, 2);
+    addBuiltin(env, "lt", builtin_lt, 2);
+    addBuiltin(env, "lte", builtin_lte, 2);
+    addBuiltin(env, "typeof", builtin_typeof, 1);
+    addBuiltin(env, "lambda", builtin_lambda, 2);
+    addBuiltin(env, "eval", builtin_eval, 1);
+    addBuiltin(env, "defmacro", builtin_defmacro, 3);
+    addBuiltin(env, "macroexpand", builtin_macroexpand, 1);
+    addBuiltin(env, "cons", builtin_cons, 2);
+    addBuiltin(env, "import", builtin_import, 1);
+    addBuiltin(env, "while", builtin_while, 2);
 
     addVar(env, intern("null"), nullObj);
     addVar(env, intern("true"), trueObj);
@@ -750,27 +758,28 @@ void defineBulitins(Obj* env) {
     addVar(env, intern("SYMBOL"), intern("SYMBOL"));
     addVar(env, intern("BOOL"), intern("BOOL"));
     addVar(env, intern("CONS"), intern("CONS"));
-    addVar(env, intern("BULITIN"), intern("BULITIN"));
+    addVar(env, intern("BUILTIN"), intern("BUILTIN"));
     addVar(env, intern("FUNCTION"), intern("FUNCTION"));
     addVar(env, intern("ENV"), intern("ENV"));
     addVar(env, intern("UNDEFINED"), intern("UNDEFINED"));
 }
 
-bool isNotEvalListBulitin(Bulitin bulitin) {
-    return bulitin == bulitin_quote
-        || bulitin == bulitin_setq
-        || bulitin == bulitin_defun
-        || bulitin == bulitin_lambda
-        || bulitin == bulitin_defmacro
-        || bulitin == bulitin_cond
-        || bulitin == bulitin_progn
-        || bulitin == bulitin_if;
+bool isNotEvalListBuiltin(Builtin builtin) {
+    return builtin == builtin_quote
+        || builtin == builtin_setq
+        || builtin == builtin_defun
+        || builtin == builtin_lambda
+        || builtin == builtin_defmacro
+        || builtin == builtin_cond
+        || builtin == builtin_progn
+        || builtin == builtin_if
+        || builtin == builtin_while;
 }
 
 Obj* macroexpand(Obj* env, Obj* macro, Obj* args) {
     Obj* newEnv = pushEnv(env, macro->v_macro.params, args);
-    // return bulitin_progn(newEnv, cons(cons(macro->v_macro.body, nullObj), nullObj));
-    return bulitin_progn(newEnv, macro->v_macro.body);
+    // return builtin_progn(newEnv, cons(cons(macro->v_macro.body, nullObj), nullObj));
+    return builtin_progn(newEnv, macro->v_macro.body);
 }
 
 Obj* apply_macro(Obj* env, Obj* macro, Obj* args) {
@@ -785,11 +794,11 @@ Obj* apply_function(Obj* env, Obj* fn, Obj* args) {
     throw_error_assert(fn->fn_param_count == -1 || argc == fn->fn_param_count, env, 
         "%s() takes %" PRId64 " positional arguments but %" PRId64 " were given", 
         fn->fn_name->v_symbol, fn->fn_param_count, argc);
-    if(fn->type != T_BULITIN || !isNotEvalListBulitin(fn->v_bulitin.ptr)) {
+    if(fn->type != T_BUILTIN || !isNotEvalListBuiltin(fn->v_builtin.ptr)) {
         args = eval_list(env, args);
     }
-    if(fn->type == T_BULITIN) {
-        return fn->v_bulitin.ptr(env, args);
+    if(fn->type == T_BUILTIN) {
+        return fn->v_builtin.ptr(env, args);
     } else if(fn->type == T_FUNCTION) {
         newEnv = pushEnv(env, fn->v_function.params, args);
         body = fn->v_function.body;
@@ -797,7 +806,7 @@ Obj* apply_function(Obj* env, Obj* fn, Obj* args) {
         newEnv = pushEnv(fn->v_lambda.env, fn->v_lambda.params, args);
         body = fn->v_lambda.body;
     }
-    return bulitin_progn(newEnv, body);
+    return builtin_progn(newEnv, body);
 }
 
 Obj* eval_list(Obj* env, Obj* x) {
@@ -834,7 +843,7 @@ Obj* eval(Obj* env, Obj* x) {
     case T_CONS: {
         Obj* obj = eval(env, car(x));
         Obj* args = cdr(x);
-        if(obj->type == T_BULITIN || obj->type == T_FUNCTION || obj->type == T_LAMBDA) {
+        if(obj->type == T_BUILTIN || obj->type == T_FUNCTION || obj->type == T_LAMBDA) {
             return apply_function(env, obj, args);
         } else if(obj->type == T_MACRO) {
             return apply_macro(env, obj, args);
@@ -864,7 +873,7 @@ void init() {
     globalEnv = makeEnv(nullObj, nullObj);
     symbols = nullObj;
     modules = nullObj;
-    defineBulitins(globalEnv);
+    defineBuiltins(globalEnv);
     loadModule(globalEnv, "./lib.lisp");
 }
 
